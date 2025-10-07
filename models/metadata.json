@@ -1,0 +1,1 @@
+{"sequence_length": 7, "feature_cols": ["screen_time_hrs", "night_usage_hrs", "sleep_hours", "app_social_hrs", "app_entertainment_hrs", "app_education_hrs", "late_sleep_flag", "low_sleep_flag"]}

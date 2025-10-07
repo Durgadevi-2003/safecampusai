@@ -1,0 +1,9 @@
+<h2>➕ Add Daily Behavior</h2>
+
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">Submit</button>
+</form>
+
+<a href="{% url 'student_dashboard' %}" class="btn btn-secondary mt-2">Back to Dashboard</a>

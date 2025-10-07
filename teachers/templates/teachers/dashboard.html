@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+  <h2>👩‍🏫 Teacher Dashboard</h2>
+  <table class="table table-striped mt-3">
+    <thead class="table-dark">
+      <tr>
+        <th>Student</th>
+        <th>Email</th>
+        <th>Last Risk Label</th>
+        <th>Risk Score</th>
+        <th>View History</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in students_data %}
+      <tr>
+        <td>{{ s.student.name }}</td>
+        <td>{{ s.student.email }}</td>
+        <td>
+          {% if s.latest_pred %}
+            {{ s.latest_pred.risk_label }}
+          {% else %}
+            <span class="text-muted">No Prediction</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if s.latest_pred %}
+            {{ s.latest_pred.risk_score|floatformat:2 }}
+          {% else %}
+            -
+          {% endif %}
+        </td>
+        <td>
+          {% comment %} <a href="{% url 'prediction_history' s.student.student_id %}" class="btn btn-sm btn-dark">View</a> {% endcomment %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="text-muted text-center">No students available.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

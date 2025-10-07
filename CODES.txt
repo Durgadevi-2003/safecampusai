@@ -1,0 +1,1797 @@
+dashboard.html
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SafeCampus AI Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<div class="container py-5">
+    <h1 class="text-center mb-4">📊 SafeCampus AI – Student Risk Detector</h1>
+
+    <!-- Upload Behavior -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-primary text-white">Upload Daily Behavior</div>
+        <div class="card-body">
+            <form action="{% url 'upload_behavior' %}" method="post">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label">Student ID</label>
+                    <input type="text" class="form-control" name="student_id" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Behavior Notes</label>
+                    <textarea class="form-control" name="behavior" rows="3" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-success">Upload</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Predict Risk -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-warning">Predict Student Risk</div>
+        <div class="card-body">
+            <form action="{% url 'predict_student' student_id='123' %}" method="post">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label">Student ID</label>
+                    <input type="text" class="form-control" name="student_id" value="123" required>
+                </div>
+                <button type="submit" class="btn btn-danger">Predict Risk</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Prediction History -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-info text-white">Prediction History</div>
+        <div class="card-body">
+            <form onsubmit="window.location='/api/students/history/'+this.student_id.value+'/'; return false;">
+                <div class="mb-3">
+                    <label class="form-label">Student ID</label>
+                    <input type="text" class="form-control" name="student_id" value="123" required>
+                </div>
+                <button type="submit" class="btn btn-primary">View History</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
+
+------------
+
+03-10-2025 (17:32)
+
+views.py
+
+# from rest_framework.decorators import api_view
+# from rest_framework.response import Response
+# from django.shortcuts import get_object_or_404
+# from .models import Student, DailyBehavior, RiskPrediction
+# from .serializers import StudentSerializer, DailyBehaviorSerializer, RiskPredictionSerializer
+# from .utils.predictor import predict_for_student_behaviors, SEQ_LEN
+
+# @api_view(["POST"])
+# def upload_behavior(request):
+#     serializer = DailyBehaviorSerializer(data=request.data)
+#     if serializer.is_valid():
+#         serializer.save()
+#         return Response({"status": "success", "data": serializer.data})
+#     return Response(serializer.errors, status=400)
+
+# @api_view(["POST"])
+# def predict_student(request, student_id):
+#     student = get_object_or_404(Student, student_id=student_id)
+#     behaviors = list(DailyBehavior.objects.filter(student=student).order_by("-date")[:SEQ_LEN])
+#     behaviors = list(reversed(behaviors))
+#     res = predict_for_student_behaviors(behaviors)
+#     if not res:
+#         return Response({"detail": "Insufficient data (need %d days)" % SEQ_LEN}, status=400)
+#     pred = RiskPrediction.objects.create(student=student, risk_label=res["label"], risk_score=res["score"], metadata={"probs": res["probs"]})
+#     return Response({"label": res["label"], "score": res["score"], "id": pred.id})
+
+# @api_view(["GET"])
+# def prediction_history(request, student_id):
+#     student = get_object_or_404(Student, student_id=student_id)
+#     preds = RiskPrediction.objects.filter(student=student).order_by("-timestamp")
+#     return Response(RiskPredictionSerializer(preds, many=True).data)
+
+
+#new
+
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from .models import Student, DailyBehavior, RiskPrediction
+from .forms import StudentForm, DailyBehaviorForm
+from django.shortcuts import render, redirect
+from django.contrib.auth import authenticate, login, logout
+from django.contrib import messages
+from django.contrib.auth.models import User
+from django.contrib.auth.decorators import login_required
+
+# -------------------------
+# Custom Login
+# -------------------------
+def login_view(request):
+    if request.method == "POST":
+        username = request.POST["username"]
+        password = request.POST["password"]
+        user = authenticate(request, username=username, password=password)
+        if user:
+            login(request, user)
+            return redirect("student_dashboard")   # redirect to student dashboard
+        else:
+            messages.error(request, "Invalid username or password")
+    return render(request, "auth/login.html")
+
+
+# -------------------------
+# Custom Signup
+# -------------------------
+def signup_view(request):
+    if request.method == "POST":
+        username = request.POST["username"]
+        password = request.POST["password"]
+        confirm = request.POST["confirm"]
+
+        if password != confirm:
+            messages.error(request, "Passwords do not match")
+        elif User.objects.filter(username=username).exists():
+            messages.error(request, "Username already exists")
+        else:
+            user = User.objects.create_user(username=username, password=password)
+            login(request, user)
+            return redirect("students/student_list")   # go to dashboard after signup
+
+    return render(request, "auth/signup.html")
+
+
+# -------------------------
+# Custom Logout
+# -------------------------
+@login_required
+def logout_view(request):
+    logout(request)
+    return redirect("login")   # back to login page
+
+
+@login_required
+def student_dashboard(request):
+    return render(request, "students/dashboard.html")
+
+# -------------------------
+# Add / Edit Student
+# -------------------------
+@login_required
+def add_student(request):
+    if request.method == "POST":
+        form = StudentForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("students/student_list")  # redirect to list page after saving
+    else:
+        form = StudentForm()
+    return render(request, "students/student_form.html", {"form": form})
+
+
+# -------------------------
+# Upload Daily Behavior
+# -------------------------
+@login_required
+def upload_behavior(request):
+    if request.method == "POST":
+        form = DailyBehaviorForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("students/behavior_success.html")  # you can create a success page
+    else:
+        form = DailyBehaviorForm()
+    return render(request, "students/behavior_form.html", {"form": form})
+
+
+# -------------------------
+# Show Prediction History
+# -------------------------
+@login_required
+def prediction_history(request, student_id):
+    student = get_object_or_404(Student, student_id=student_id)
+    predictions = RiskPrediction.objects.filter(student=student).order_by("-timestamp")
+    return render(
+        request,
+        "students/history.html",
+        {"student": student, "predictions": predictions},
+    )
+
+
+# -------------------------
+# Simple Student List Page
+# -------------------------
+@login_required
+def student_list(request):
+    students = Student.objects.all()
+    return render(request, "students/student_list.html", {"students": students})
+--------------------------
+04-10-2025 (10:58)
+
+views.py 
+
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from .models import Student, DailyBehavior, RiskPrediction
+from .forms import StudentForm, DailyBehaviorForm
+from django.shortcuts import render, redirect
+from django.contrib.auth import authenticate, login, logout
+from django.contrib import messages
+from django.contrib.auth.models import User
+from django.contrib.auth.decorators import login_required
+import joblib
+import json
+import numpy as np
+import tensorflow as tf
+ 
+ 
+def login_view(request):
+    if request.method == "POST":
+        username = request.POST["username"]
+        password = request.POST["password"]
+        user = authenticate(request, username=username, password=password)
+        if user:
+            login(request, user)
+            return redirect("student_dashboard")   # redirect to student dashboard
+        else:
+            messages.error(request, "Invalid username or password")
+    return render(request, "auth/login.html")
+
+def signup_view(request):
+    if request.method == "POST":
+        username = request.POST["username"]
+        password = request.POST["password"]
+        confirm = request.POST["confirm"]
+
+        if password != confirm:
+            messages.error(request, "Passwords do not match")
+        elif User.objects.filter(username=username).exists():
+            messages.error(request, "Username already exists")
+        else:
+            user = User.objects.create_user(username=username, password=password)
+            # Create linked Student profile
+            Student.objects.create(
+            user=user,                 # 🔑 link to user
+            student_id=username,       # or generate unique roll no
+            name=username              # you can add email, dept, etc
+            )
+            login(request, user)
+            return redirect("students/student_list")   # go to dashboard after signup
+
+    return render(request, "auth/signup.html")
+
+@login_required
+def logout_view(request):
+    logout(request)
+    return redirect("login")   # back to login page
+
+ 
+
+# # Load models once (for performance)
+# scaler = joblib.load("models/scaler.joblib")
+# with open("models/student_behavior_xgb.json", "r") as f:
+#     xgb_model_json = json.load(f)
+# # Example: If using XGBoost you can reload like this:
+# # import xgboost as xgb
+# # xgb_model = xgb.Booster()
+# # xgb_model.load_model("models/student_behavior_xgb.json")
+
+# lstm_model = tf.keras.models.load_model("models/student_behavior_lstm_supervised.h5")
+
+
+# # @login_required
+# # def student_dashboard(request):
+# #     student = Student.objects.filter(student_id=request.user.username).first()
+
+# #     latest_behavior = None
+# #     latest_prediction = None
+
+# #     if student:
+# #         latest_behavior = DailyBehavior.objects.filter(student=student).order_by("-date").first()
+
+# #         if latest_behavior:
+# #             # Prepare input features
+# #             features = np.array([[
+# #                 latest_behavior.screen_time_hrs,
+# #                 latest_behavior.night_usage_hrs,
+# #                 latest_behavior.sleep_hours,
+# #                 latest_behavior.app_social_hrs,
+# #                 latest_behavior.app_entertainment_hrs,
+# #                 latest_behavior.app_education_hrs,
+# #                 int(latest_behavior.late_sleep_flag),
+# #                 int(latest_behavior.low_sleep_flag),
+# #             ]])
+
+# #             # Scale
+# #             features_scaled = scaler.transform(features)
+
+# #             # Predict (example with LSTM)
+# #             prediction = lstm_model.predict(features_scaled, verbose=0)
+# #             risk_score = float(prediction[0][0])  # depends on model output
+# #             risk_label = "High Risk" if risk_score > 0.6 else "Low Risk"
+
+# #             # Save prediction in DB
+# #             latest_prediction = RiskPrediction.objects.create(
+# #                 student=student,
+# #                 risk_label=risk_label,
+# #                 risk_score=risk_score,
+# #                 metadata={"model": "LSTM"}
+# #             )
+
+# #     return render(request, "students/dashboard.html", {
+# #         "student": student,
+# #         "latest_behavior": latest_behavior,
+# #         "latest_prediction": latest_prediction,
+# #     })
+ 
+
+# def student_dashboard(request):
+#     if not request.user.is_authenticated:
+#         return redirect("login")
+
+#     # try to find student profile matching logged-in username
+#     student = Student.objects.filter(student_id=request.user.username).first()
+
+#     if not student:
+#         return render(request, "students/dashboard.html", {
+#             "error": "No student profile found for this user."
+#         })
+
+#     # load behaviors + predictions for that student
+#     behaviors = student.behaviors.all().order_by("-date")[:10]
+#     predictions = student.predictions.all().order_by("-timestamp")[:5]
+
+#     return render(request, "students/dashboard.html", {
+#         "student": student,
+#         "behaviors": behaviors,
+#         "predictions": predictions,
+#     })
+
+ 
+# Load models once
+scaler = joblib.load("models/scaler.joblib")
+lstm_model = tf.keras.models.load_model("models/student_behavior_lstm_supervised.h5")
+
+# @login_required
+# def student_dashboard(request):
+#     # fetch the student profile linked to logged-in user
+#     student = getattr(request.user, "student", None)
+
+#     if not student:
+#         return render(request, "students/dashboard.html", {
+#             "error": "No student profile linked to this account."
+#         })
+
+#     latest_behavior = DailyBehavior.objects.filter(student=student).order_by("-date").first()
+#     latest_prediction = None
+
+#     if latest_behavior:
+#         # prepare features
+#         features = np.array([[
+#             latest_behavior.screen_time_hrs,
+#             latest_behavior.night_usage_hrs,
+#             latest_behavior.sleep_hours,
+#             latest_behavior.app_social_hrs,
+#             latest_behavior.app_entertainment_hrs,
+#             latest_behavior.app_education_hrs,
+#             int(latest_behavior.late_sleep_flag),
+#             int(latest_behavior.low_sleep_flag),
+#         ]])
+
+#         features_scaled = scaler.transform(features)
+
+#         # predict with LSTM
+#         prediction = lstm_model.predict(features_scaled, verbose=0)
+#         risk_score = float(prediction[0][0])
+#         risk_label = "High Risk" if risk_score > 0.6 else "Low Risk"
+
+#         # save prediction
+#         latest_prediction = RiskPrediction.objects.create(
+#             student=student,
+#             risk_label=risk_label,
+#             risk_score=risk_score,
+#             metadata={"model": "LSTM"}
+#         )
+
+#     return render(request, "students/dashboard.html", {
+#         "student": student,
+#         "latest_behavior": latest_behavior,
+#         "latest_prediction": latest_prediction,
+#     })
+
+ 
+# @login_required
+# def student_dashboard(request):
+#     # ensure student profile exists
+#     student, created = Student.objects.get_or_create(user=request.user)
+
+#     latest_behavior = DailyBehavior.objects.filter(student=student).order_by("-date").first()
+#     latest_prediction = None
+
+#     if latest_behavior:
+#         # prepare features
+#         features = np.array([[ 
+#             latest_behavior.screen_time_hrs,
+#             latest_behavior.night_usage_hrs,
+#             latest_behavior.sleep_hours,
+#             latest_behavior.app_social_hrs,
+#             latest_behavior.app_entertainment_hrs,
+#             latest_behavior.app_education_hrs,
+#             int(latest_behavior.late_sleep_flag),
+#             int(latest_behavior.low_sleep_flag),
+#         ]])
+
+#         features_scaled = scaler.transform(features)
+
+#         # predict with LSTM
+#         prediction = lstm_model.predict(features_scaled, verbose=0)
+#         risk_score = float(prediction[0][0])
+#         risk_label = "High Risk" if risk_score > 0.6 else "Low Risk"
+
+#         # save prediction
+#         latest_prediction = RiskPrediction.objects.create(
+#             student=student,
+#             risk_label=risk_label,
+#             risk_score=risk_score,
+#             metadata={"model": "LSTM"}
+#         )
+
+#     return render(request, "students/dashboard.html", {
+#         "student": student,
+#         "latest_behavior": latest_behavior,
+#         "latest_prediction": latest_prediction,
+#         "created": created  # optional, to show “Profile created” message
+#     })
+# new
+
+@login_required
+def student_dashboard(request):
+    # ✅ ensure student profile exists
+    student, created = Student.objects.get_or_create(user=request.user)
+
+    latest_behavior = DailyBehavior.objects.filter(student=student).order_by("-date").first()
+    latest_prediction = None
+
+    if latest_behavior:
+        # ✅ fetch last 7 days of data
+        behaviors = DailyBehavior.objects.filter(student=student).order_by("-date")[:7]
+
+        if len(behaviors) == 7:
+            # build feature matrix (7 days × 8 features)
+            features = np.array([
+                [
+                    b.screen_time_hrs,
+                    b.night_usage_hrs,
+                    b.sleep_hours,
+                    b.app_social_hrs,
+                    b.app_entertainment_hrs,
+                    b.app_education_hrs,
+                    int(b.late_sleep_flag),
+                    int(b.low_sleep_flag),
+                ]
+                for b in reversed(behaviors)  # oldest → newest order
+            ])
+
+            # scale and reshape for LSTM
+            features_scaled = scaler.transform(features)
+            features_reshaped = features_scaled.reshape((1, 7, 8))
+
+            # predict
+            prediction = lstm_model.predict(features_reshaped, verbose=0)
+            risk_score = float(prediction[0][0])
+            risk_label = "High Risk" if risk_score > 0.6 else "Low Risk"
+
+            # save prediction
+            latest_prediction = RiskPrediction.objects.create(
+                student=student,
+                risk_label=risk_label,
+                risk_score=risk_score,
+                metadata={"model": "LSTM", "days_used": 7}
+            )
+
+    return render(request, "students/dashboard.html", {
+        "student": student,
+        "latest_behavior": latest_behavior,
+        "latest_prediction": latest_prediction,
+        "created": created  # ✅ can show “Profile created” message
+    })
+
+@login_required
+def add_student(request):
+    if request.method == "POST":
+        form = StudentForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("students/student_list")  # redirect to list page after saving
+    else:
+        form = StudentForm()
+    return render(request, "students/student_form.html", {"form": form})
+ 
+@login_required
+def upload_behavior(request):
+    if request.method == "POST":
+        form = DailyBehaviorForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("students/behavior_success.html")  # you can create a success page
+    else:
+        form = DailyBehaviorForm()
+    return render(request, "students/behavior_form.html", {"form": form})
+ 
+@login_required
+def prediction_history(request, student_id):
+    student = get_object_or_404(Student, student_id=student_id)
+    predictions = RiskPrediction.objects.filter(student=student).order_by("-timestamp")
+    return render(
+        request,
+        "students/history.html",
+        {"student": student, "predictions": predictions},
+    )
+ 
+@login_required
+def student_list(request):
+    students = Student.objects.all()
+    return render(request, "students/student_list.html", {"students": students})
+
+
+ 
+# @login_required
+# def add_daily_behavior(request):
+#     student, _ = Student.objects.get_or_create(user=request.user)
+
+#     if request.method == 'POST':
+#         form = DailyBehaviorForm(request.POST)
+#         if form.is_valid():
+#             behavior = form.save(commit=False)
+#             behavior.student = student
+#             behavior.save()
+
+#             # Predict immediately after saving
+#             features = np.array([[ 
+#                 behavior.screen_time_hrs,
+#                 behavior.night_usage_hrs,
+#                 behavior.sleep_hours,
+#                 behavior.app_social_hrs,
+#                 behavior.app_entertainment_hrs,
+#                 behavior.app_education_hrs,
+#                 int(behavior.late_sleep_flag),
+#                 int(behavior.low_sleep_flag),
+#             ]])
+#             features_scaled = scaler.transform(features)
+#             prediction = lstm_model.predict(features_scaled, verbose=0)
+#             risk_score = float(prediction[0][0])
+#             risk_label = "High Risk" if risk_score > 0.6 else "Low Risk"
+
+#             RiskPrediction.objects.create(
+#                 student=student,
+#                 risk_label=risk_label,
+#                 risk_score=risk_score,
+#                 metadata={"model": "LSTM"}
+#             )
+
+#             return redirect('student_dashboard')
+#     else:
+#         form = DailyBehaviorForm()
+
+#     return render(request, 'students/add_behavior.html', {'form': form})
+
+# new
+@login_required
+def add_daily_behavior(request):
+    student, _ = Student.objects.get_or_create(user=request.user)
+
+    if request.method == 'POST':
+        form = DailyBehaviorForm(request.POST)
+        if form.is_valid():
+            data = form.cleaned_data
+
+            # ✅ Prevent duplicate date insert using update_or_create
+            behavior, created = DailyBehavior.objects.update_or_create(
+                student=student,
+                date=data["date"],
+                defaults={
+                    "screen_time_hrs": data["screen_time_hrs"],
+                    "night_usage_hrs": data["night_usage_hrs"],
+                    "sleep_hours": data["sleep_hours"],
+                    "app_social_hrs": data["app_social_hrs"],
+                    "app_entertainment_hrs": data["app_entertainment_hrs"],
+                    "app_education_hrs": data["app_education_hrs"],
+                    "late_sleep_flag": data["late_sleep_flag"],
+                    "low_sleep_flag": data["low_sleep_flag"],
+                }
+            )
+
+            # ✅ Fetch last 7 days for prediction
+            behaviors = DailyBehavior.objects.filter(student=student).order_by("-date")[:7]
+
+            if len(behaviors) == 7:
+                features = np.array([
+                    [
+                        b.screen_time_hrs,
+                        b.night_usage_hrs,
+                        b.sleep_hours,
+                        b.app_social_hrs,
+                        b.app_entertainment_hrs,
+                        b.app_education_hrs,
+                        int(b.late_sleep_flag),
+                        int(b.low_sleep_flag),
+                    ]
+                    for b in reversed(behaviors)  # oldest → newest
+                ])
+
+                # scale & reshape
+                features_scaled = scaler.transform(features)
+                features_reshaped = features_scaled.reshape((1, 7, 8))
+
+                # predict
+                prediction = lstm_model.predict(features_reshaped, verbose=0)
+                risk_score = float(prediction[0][0])
+                risk_label = "High Risk" if risk_score > 0.6 else "Low Risk"
+
+                # save prediction
+                RiskPrediction.objects.create(
+                    student=student,
+                    risk_label=risk_label,
+                    risk_score=risk_score,
+                    metadata={"model": "LSTM", "days_used": 7}
+                )
+
+            return redirect('student_dashboard')
+
+    else:
+        form = DailyBehaviorForm()
+
+    return render(request, 'students/add_behavior.html', {'form': form})
+
+
+------------------------
+
+Dashboard.html
+
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+    <h2 class="mb-4">📊 Student Dashboard</h2>
+
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body text-center">
+                    <h5 class="card-title">➕ Add Daily Behavior</h5>
+                    <a href="{% url 'upload_behavior' %}" class="btn btn-primary">Upload Behavior</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body text-center">
+                    <h5 class="card-title">📈 Predictions</h5>
+                    <a href="prediction_history" class="btn btn-success">Get Prediction</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body text-center">
+                    <h5 class="card-title">📜 History</h5>
+                    <a href="#" class="btn btn-secondary">View History</a>
+                </div>
+            </div>
+        </div>
+    </div>
+<div class="container mt-5">
+    <h2>📊 Student Dashboard</h2>
+
+    {% if student %}
+        <div class="card mt-4 shadow-sm">
+            <div class="card-body">
+                <h4>{{ student.name }} ({{ student.student_id }})</h4>
+                <p>Email: {{ student.email }}</p>
+            </div>
+        </div>
+
+        {% if latest_behavior %}
+        <div class="card mt-4 shadow-sm">
+            <div class="card-body">
+                <h5>📌 Latest Behavior ({{ latest_behavior.date }})</h5>
+                <ul>
+                    <li>Screen time: {{ latest_behavior.screen_time_hrs }} hrs</li>
+                    <li>Night usage: {{ latest_behavior.night_usage_hrs }} hrs</li>
+                    <li>Sleep: {{ latest_behavior.sleep_hours }} hrs</li>
+                    <li>Social apps: {{ latest_behavior.app_social_hrs }} hrs</li>
+                    <li>Entertainment: {{ latest_behavior.app_entertainment_hrs }} hrs</li>
+                    <li>Education: {{ latest_behavior.app_education_hrs }} hrs</li>
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if latest_prediction %}
+        <div class="card mt-4 shadow-sm border-success">
+            <div class="card-body">
+                <h5>🧠 Latest Prediction</h5>
+                <p><strong>Risk Label:</strong> {{ latest_prediction.risk_label }}</p>
+                <p><strong>Risk Score:</strong> {{ latest_prediction.risk_score|floatformat:2 }}</p>
+            </div>
+        </div>
+        {% else %}
+            <p class="mt-3 text-muted">⚠️ No prediction available yet.</p>
+        {% endif %}
+    {% else %}
+        <p>No student profile found for this user.</p>
+    {% endif %}
+
+    <h2>📊 Student Dashboard</h2>
+
+{% if error %}
+  <p style="color: red;">{{ error }}</p>
+{% else %}
+  <h3>{{ student.name }} ({{ student.student_id }})</h3>
+  <p>Email: {{ student.email }}</p>
+
+  <h4>Recent Behaviors</h4>
+  <ul>
+    {% for b in behaviors %}
+      <li>{{ b.date }} - Screen Time: {{ b.screen_time_hrs }} hrs, Sleep: {{ b.sleep_hours }} hrs</li>
+    {% empty %}
+      <li>No behaviors recorded yet.</li>
+    {% endfor %}
+  </ul>
+
+  <h4>Recent Predictions</h4>
+  <ul>
+    {% for p in predictions %}
+      <li>{{ p.timestamp }} - Risk: {{ p.risk_label }} ({{ p.risk_score|floatformat:2 }})</li>
+    {% empty %}
+      <li>No predictions yet.</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+<h2>📊 Student Dashboard</h2>
+
+{% if created %}
+    <p>Your student profile was created automatically!</p>
+{% endif %}
+
+<p>Welcome, {{ student.user.username }}</p>
+
+{% if latest_behavior %}
+    <p>Latest behavior date: {{ latest_behavior.date }}</p>
+    <p>Screen time: {{ latest_behavior.screen_time_hrs }} hrs</p>
+{% else %}
+    <p>No behavior data yet.</p>
+{% endif %}
+
+{% if latest_prediction %}
+    <p>Risk Label: {{ latest_prediction.risk_label }}</p>
+    <p>Risk Score: {{ latest_prediction.risk_score }}</p>
+{% else %}
+    <p>No predictions yet.</p>
+{% endif %}
+<a href="{% url 'add_daily_behavior' %}" class="btn btn-success">Add Today's Behavior</a>
+
+</div>
+    <div class="mt-4 text-end">
+        <a href="{% url 'logout' %}" class="btn btn-danger">Logout</a>
+    </div>
+</div>
+{% endblock %}
+-----------------
+06-10-2025
+
+dashboard.html
+
+{% extends "base.html" %}
+{% block content %}
+{% load custom_filters %}
+
+<div class="container mt-5">
+    <h2 class="mb-4">📊 Student Dashboard</h2>
+
+    <!-- Quick Action Cards -->
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body text-center">
+                    <h5 class="card-title">➕ Add Daily Behavior</h5>
+                    <a href="{% url 'upload_behavior' %}" class="btn btn-primary">Upload Behavior</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body text-center">
+                    <h5 class="card-title">📈 Predictions</h5>
+                    <a href="prediction_history" class="btn btn-success">Get Prediction</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body text-center">
+                    <h5 class="card-title">📜 History</h5>
+                    <a href="#" class="btn btn-secondary">View History</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Info -->
+    {% if student %}
+    <div class="card mt-4 shadow-sm">
+        <div class="card-body">
+            <h4>{{ student.name }} ({{ student.student_id }})</h4>
+            <p>Email: {{ student.email }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Latest Behavior -->
+    {% if latest_behavior %}
+    <div class="card mt-4 shadow-sm">
+        <div class="card-body">
+            <h5>📌 Latest Behavior ({{ latest_behavior.date }})</h5>
+            <ul>
+                <li>Screen time: {{ latest_behavior.screen_time_hrs }} hrs</li>
+                <li>Night usage: {{ latest_behavior.night_usage_hrs }} hrs</li>
+                <li>Sleep: {{ latest_behavior.sleep_hours }} hrs</li>
+                <li>Social apps: {{ latest_behavior.app_social_hrs }} hrs</li>
+                <li>Entertainment: {{ latest_behavior.app_entertainment_hrs }} hrs</li>
+                <li>Education: {{ latest_behavior.app_education_hrs }} hrs</li>
+            </ul>
+
+            <!-- Progress Bars -->
+            <h6>Progress Overview</h6>
+            <div class="progress mb-2">
+                <div class="progress-bar bg-info" role="progressbar" 
+                     style="width: {{ latest_behavior.screen_time_hrs|floatformat:1|mul:8 }}%;" 
+                     aria-valuenow="{{ latest_behavior.screen_time_hrs }}" aria-valuemin="0" aria-valuemax="12">
+                    Screen Time: {{ latest_behavior.screen_time_hrs }} hrs
+                </div>
+            </div>
+            <div class="progress mb-2">
+                <div class="progress-bar bg-success" role="progressbar" 
+                     style="width: {{ latest_behavior.sleep_hours|floatformat:1|mul:10 }}%;" 
+                     aria-valuenow="{{ latest_behavior.sleep_hours }}" aria-valuemin="0" aria-valuemax="12">
+                    Sleep: {{ latest_behavior.sleep_hours }} hrs
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Latest Prediction -->
+    {% if latest_prediction %}
+    <div class="card mt-4 shadow-sm border-success">
+        <div class="card-body">
+            <h5>🧠 Latest Prediction</h5>
+            <p><strong>Risk Label:</strong> {{ latest_prediction.risk_label }}</p>
+            <p><strong>Risk Score:</strong> {{ latest_prediction.risk_score|floatformat:2 }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Charts -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body">
+                    <h5>📊 Screen Time Trend</h5>
+                    <canvas id="screenTimeChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body">
+                    <h5>📊 Risk Score Trend</h5>
+                    <canvas id="riskScoreChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4 text-end">
+        <a href="{% url 'logout' %}" class="btn btn-danger">Logout</a>
+    </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const screenTimeCtx = document.getElementById('screenTimeChart').getContext('2d');
+new Chart(screenTimeCtx, {
+    type: 'line',
+    data: {
+        labels: [{% for b in behaviors %}'{{ b.date }}',{% endfor %}],
+        datasets: [{
+            label: 'Screen Time (hrs)',
+            data: [{% for b in behaviors %}{{ b.screen_time_hrs }},{% endfor %}],
+            borderColor: 'rgba(54, 162, 235, 1)',
+            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+            tension: 0.3,
+            fill: true
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { position: 'top' } },
+        scales: { y: { beginAtZero: true } }
+    }
+});
+
+const riskScoreCtx = document.getElementById('riskScoreChart').getContext('2d');
+new Chart(riskScoreCtx, {
+    type: 'bar',
+    data: {
+        labels: [{% for p in predictions %}'{{ p.timestamp|date:"M d" }}',{% endfor %}],
+        datasets: [{
+            label: 'Risk Score',
+            data: [{% for p in predictions %}{{ p.risk_score }},{% endfor %}],
+            backgroundColor: function(context) {
+                const score = context.dataset.data[context.dataIndex];
+                return score > 0.6 ? 'rgba(255, 99, 132, 0.7)' : 'rgba(75, 192, 192, 0.7)';
+            }
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, max: 1 } }
+    }
+});
+</script>
+{% endblock %}
+-----------------------------------
+view.py
+
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from .models import Student, DailyBehavior, RiskPrediction
+from .forms import StudentForm, DailyBehaviorForm
+from django.shortcuts import render, redirect
+from django.contrib.auth import authenticate, login, logout
+from django.contrib import messages
+from django.contrib.auth.models import User
+from django.contrib.auth.decorators import login_required
+import joblib
+import json
+import numpy as np
+import tensorflow as tf
+ 
+ 
+def login_view(request):
+    if request.method == "POST":
+        username = request.POST["username"]
+        password = request.POST["password"]
+        user = authenticate(request, username=username, password=password)
+        if user:
+            login(request, user)
+            return redirect("student_dashboard")   # redirect to student dashboard
+        else:
+            messages.error(request, "Invalid username or password")
+    return render(request, "auth/login.html")
+
+def signup_view(request):
+    if request.method == "POST":
+        username = request.POST["username"]
+        password = request.POST["password"]
+        confirm = request.POST["confirm"]
+
+        if password != confirm:
+            messages.error(request, "Passwords do not match")
+        elif User.objects.filter(username=username).exists():
+            messages.error(request, "Username already exists")
+        else:
+            user = User.objects.create_user(username=username, password=password)
+            # Create linked Student profile
+            Student.objects.create(
+            user=user,                 # 🔑 link to user
+            student_id=username,       # or generate unique roll no
+            name=username              # you can add email, dept, etc
+            )
+            login(request, user)
+            return redirect("students/student_list")   # go to dashboard after signup
+
+    return render(request, "auth/signup.html")
+
+@login_required
+def logout_view(request):
+    logout(request)
+    return redirect("login")   # back to login page
+
+ 
+
+# # Load models once (for performance)
+# scaler = joblib.load("models/scaler.joblib")
+# with open("models/student_behavior_xgb.json", "r") as f:
+#     xgb_model_json = json.load(f)
+# # Example: If using XGBoost you can reload like this:
+# # import xgboost as xgb
+# # xgb_model = xgb.Booster()
+# # xgb_model.load_model("models/student_behavior_xgb.json")
+
+# lstm_model = tf.keras.models.load_model("models/student_behavior_lstm_supervised.h5")
+
+
+# # @login_required
+# # def student_dashboard(request):
+# #     student = Student.objects.filter(student_id=request.user.username).first()
+
+# #     latest_behavior = None
+# #     latest_prediction = None
+
+# #     if student:
+# #         latest_behavior = DailyBehavior.objects.filter(student=student).order_by("-date").first()
+
+# #         if latest_behavior:
+# #             # Prepare input features
+# #             features = np.array([[
+# #                 latest_behavior.screen_time_hrs,
+# #                 latest_behavior.night_usage_hrs,
+# #                 latest_behavior.sleep_hours,
+# #                 latest_behavior.app_social_hrs,
+# #                 latest_behavior.app_entertainment_hrs,
+# #                 latest_behavior.app_education_hrs,
+# #                 int(latest_behavior.late_sleep_flag),
+# #                 int(latest_behavior.low_sleep_flag),
+# #             ]])
+
+# #             # Scale
+# #             features_scaled = scaler.transform(features)
+
+# #             # Predict (example with LSTM)
+# #             prediction = lstm_model.predict(features_scaled, verbose=0)
+# #             risk_score = float(prediction[0][0])  # depends on model output
+# #             risk_label = "High Risk" if risk_score > 0.6 else "Low Risk"
+
+# #             # Save prediction in DB
+# #             latest_prediction = RiskPrediction.objects.create(
+# #                 student=student,
+# #                 risk_label=risk_label,
+# #                 risk_score=risk_score,
+# #                 metadata={"model": "LSTM"}
+# #             )
+
+# #     return render(request, "students/dashboard.html", {
+# #         "student": student,
+# #         "latest_behavior": latest_behavior,
+# #         "latest_prediction": latest_prediction,
+# #     })
+ 
+
+# def student_dashboard(request):
+#     if not request.user.is_authenticated:
+#         return redirect("login")
+
+#     # try to find student profile matching logged-in username
+#     student = Student.objects.filter(student_id=request.user.username).first()
+
+#     if not student:
+#         return render(request, "students/dashboard.html", {
+#             "error": "No student profile found for this user."
+#         })
+
+#     # load behaviors + predictions for that student
+#     behaviors = student.behaviors.all().order_by("-date")[:10]
+#     predictions = student.predictions.all().order_by("-timestamp")[:5]
+
+#     return render(request, "students/dashboard.html", {
+#         "student": student,
+#         "behaviors": behaviors,
+#         "predictions": predictions,
+#     })
+
+ 
+# Load models once
+scaler = joblib.load("models/scaler.joblib")
+lstm_model = tf.keras.models.load_model("models/student_behavior_lstm_supervised.h5")
+
+# @login_required
+# def student_dashboard(request):
+#     # fetch the student profile linked to logged-in user
+#     student = getattr(request.user, "student", None)
+
+#     if not student:
+#         return render(request, "students/dashboard.html", {
+#             "error": "No student profile linked to this account."
+#         })
+
+#     latest_behavior = DailyBehavior.objects.filter(student=student).order_by("-date").first()
+#     latest_prediction = None
+
+#     if latest_behavior:
+#         # prepare features
+#         features = np.array([[
+#             latest_behavior.screen_time_hrs,
+#             latest_behavior.night_usage_hrs,
+#             latest_behavior.sleep_hours,
+#             latest_behavior.app_social_hrs,
+#             latest_behavior.app_entertainment_hrs,
+#             latest_behavior.app_education_hrs,
+#             int(latest_behavior.late_sleep_flag),
+#             int(latest_behavior.low_sleep_flag),
+#         ]])
+
+#         features_scaled = scaler.transform(features)
+
+#         # predict with LSTM
+#         prediction = lstm_model.predict(features_scaled, verbose=0)
+#         risk_score = float(prediction[0][0])
+#         risk_label = "High Risk" if risk_score > 0.6 else "Low Risk"
+
+#         # save prediction
+#         latest_prediction = RiskPrediction.objects.create(
+#             student=student,
+#             risk_label=risk_label,
+#             risk_score=risk_score,
+#             metadata={"model": "LSTM"}
+#         )
+
+#     return render(request, "students/dashboard.html", {
+#         "student": student,
+#         "latest_behavior": latest_behavior,
+#         "latest_prediction": latest_prediction,
+#     })
+
+ 
+# @login_required
+# def student_dashboard(request):
+#     # ensure student profile exists
+#     student, created = Student.objects.get_or_create(user=request.user)
+
+#     latest_behavior = DailyBehavior.objects.filter(student=student).order_by("-date").first()
+#     latest_prediction = None
+
+#     if latest_behavior:
+#         # prepare features
+#         features = np.array([[ 
+#             latest_behavior.screen_time_hrs,
+#             latest_behavior.night_usage_hrs,
+#             latest_behavior.sleep_hours,
+#             latest_behavior.app_social_hrs,
+#             latest_behavior.app_entertainment_hrs,
+#             latest_behavior.app_education_hrs,
+#             int(latest_behavior.late_sleep_flag),
+#             int(latest_behavior.low_sleep_flag),
+#         ]])
+
+#         features_scaled = scaler.transform(features)
+
+#         # predict with LSTM
+#         prediction = lstm_model.predict(features_scaled, verbose=0)
+#         risk_score = float(prediction[0][0])
+#         risk_label = "High Risk" if risk_score > 0.6 else "Low Risk"
+
+#         # save prediction
+#         latest_prediction = RiskPrediction.objects.create(
+#             student=student,
+#             risk_label=risk_label,
+#             risk_score=risk_score,
+#             metadata={"model": "LSTM"}
+#         )
+
+#     return render(request, "students/dashboard.html", {
+#         "student": student,
+#         "latest_behavior": latest_behavior,
+#         "latest_prediction": latest_prediction,
+#         "created": created  # optional, to show “Profile created” message
+#     })
+# new
+
+@login_required
+def student_dashboard(request):
+    # ✅ ensure student profile exists
+    student, created = Student.objects.get_or_create(user=request.user)
+
+    latest_behavior = DailyBehavior.objects.filter(student=student).order_by("-date").first()
+    latest_prediction = None
+
+    if latest_behavior:
+        # ✅ fetch last 7 days of data
+        # behaviors = DailyBehavior.objects.filter(student=student).order_by("-date")[:7]
+        # ✅ Get recent trends
+        behaviors = DailyBehavior.objects.filter(student=student).order_by('date')[:7]
+        predictions = RiskPrediction.objects.filter(student=student).order_by('timestamp')[:7]
+        if len(behaviors) == 7:
+            # build feature matrix (7 days × 8 features)
+            features = np.array([
+                [
+                    b.screen_time_hrs,
+                    b.night_usage_hrs,
+                    b.sleep_hours,
+                    b.app_social_hrs,
+                    b.app_entertainment_hrs,
+                    b.app_education_hrs,
+                    int(b.late_sleep_flag),
+                    int(b.low_sleep_flag),
+                ]
+                for b in reversed(behaviors)  # oldest → newest order
+            ])
+
+            # scale and reshape for LSTM
+            features_scaled = scaler.transform(features)
+            features_reshaped = features_scaled.reshape((1, 7, 8))
+
+            # predict
+            prediction = lstm_model.predict(features_reshaped, verbose=0)
+            risk_score = float(prediction[0][0])
+            risk_label = "High Risk" if risk_score > 0.6 else "Low Risk"
+
+            # save prediction
+            latest_prediction = RiskPrediction.objects.create(
+                student=student,
+                risk_label=risk_label,
+                risk_score=risk_score,
+                metadata={"model": "LSTM", "days_used": 7}
+            )
+
+    return render(request, "students/dashboard.html", {
+        "student": student,
+        "latest_behavior": latest_behavior,
+        "latest_prediction": latest_prediction,
+        "created": created,  # ✅ can show “Profile created” message
+        "behaviors": behaviors,
+        "predictions": predictions,
+    })
+
+@login_required
+def add_student(request):
+    if request.method == "POST":
+        form = StudentForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("students/student_list")  # redirect to list page after saving
+    else:
+        form = StudentForm()
+    return render(request, "students/student_form.html", {"form": form})
+ 
+@login_required
+def upload_behavior(request):
+    if request.method == "POST":
+        form = DailyBehaviorForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("students/behavior_success.html")  # you can create a success page
+    else:
+        form = DailyBehaviorForm()
+    return render(request, "students/behavior_form.html", {"form": form})
+ 
+@login_required
+def prediction_history(request, student_id):
+    student = get_object_or_404(Student, student_id=student_id)
+    predictions = RiskPrediction.objects.filter(student=student).order_by("-timestamp")
+    return render(
+        request,
+        "students/history.html",
+        {"student": student, "predictions": predictions},
+    )
+ 
+@login_required
+def student_list(request):
+    students = Student.objects.all()
+    return render(request, "students/student_list.html", {"students": students})
+
+# @login_required
+# def add_daily_behavior(request):
+#     student, _ = Student.objects.get_or_create(user=request.user)
+
+#     if request.method == 'POST':
+#         form = DailyBehaviorForm(request.POST)
+#         if form.is_valid():
+#             data = form.cleaned_data
+
+#             # ✅ Prevent duplicates
+#             behavior, created = DailyBehavior.objects.update_or_create(
+#                 student=student,
+#                 date=data["date"],
+#                 defaults={
+#                     "screen_time_hrs": data["screen_time_hrs"],
+#                     "night_usage_hrs": data["night_usage_hrs"],
+#                     "sleep_hours": data["sleep_hours"],
+#                     "app_social_hrs": data["app_social_hrs"],
+#                     "app_entertainment_hrs": data["app_entertainment_hrs"],
+#                     "app_education_hrs": data["app_education_hrs"],
+#                     "late_sleep_flag": data["late_sleep_flag"],
+#                     "low_sleep_flag": data["low_sleep_flag"],
+#                 }
+#             )
+
+#             # ✅ fetch *all available days* (latest 7 max)
+#             behaviors = DailyBehavior.objects.filter(student=student).order_by("-date")[:7]
+
+#             if behaviors.exists():
+#                 features = np.array([
+#                     [
+#                         b.screen_time_hrs,
+#                         b.night_usage_hrs,
+#                         b.sleep_hours,
+#                         b.app_social_hrs,
+#                         b.app_entertainment_hrs,
+#                         b.app_education_hrs,
+#                         int(b.late_sleep_flag),
+#                         int(b.low_sleep_flag),
+#                     ]
+#                     for b in reversed(behaviors)  # oldest → newest
+#                 ])
+
+#                 # ✅ scale features
+#                 features_scaled = scaler.transform(features)
+
+#                 # ✅ reshape dynamically (batch, timesteps, features)
+#                 features_reshaped = features_scaled.reshape((1, features_scaled.shape[0], features_scaled.shape[1]))
+
+#                 # ✅ predict
+#                 prediction = lstm_model.predict(features_reshaped, verbose=0)
+#                 risk_score = float(prediction[0][0])
+#                 risk_label = "High Risk" if risk_score > 0.6 else "Low Risk"
+
+#                 # ✅ store prediction
+#                 RiskPrediction.objects.create(
+#                     student=student,
+#                     risk_label=risk_label,
+#                     risk_score=risk_score,
+#                     metadata={"model": "LSTM", "days_used": features.shape[0]}
+#                 )
+
+#             return redirect('student_dashboard')
+
+#     else:
+#         form = DailyBehaviorForm()
+
+#     return render(request, 'students/add_behavior.html', {'form': form})
+
+import os
+import xgboost as xgb
+from tensorflow.keras.models import load_model
+# # BASE_DIR → project root (where manage.py is)
+# BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# # Folder where all your models live
+# MODEL_DIR = os.path.join(BASE_DIR, "models")  # <-- replace "models" with your folder name if different
+
+# # Scaler & label encoder
+# scaler = joblib.load(os.path.join(MODEL_DIR, "scaler.joblib"))
+# label_encoder = joblib.load(os.path.join(MODEL_DIR, "label_encoder.joblib"))
+
+# # LSTM models
+# lstm_model = load_model(os.path.join(MODEL_DIR, "student_behavior_lstm_supervised.h5"))
+# feature_extractor = load_model(os.path.join(MODEL_DIR, "student_behavior_feature_extractor.h5"))
+
+# # XGBoost
+# xgb_model = xgb.XGBClassifier()
+# xgb_model.load_model(os.path.join(MODEL_DIR, "student_behavior_xgb.json"))
+
+
+# # ----------------------
+# # Utility
+# # ----------------------
+# def prepare_input(data, sequence_length=7, feature_count=8):
+#     arr = np.array(data, dtype=float)
+#     if arr.shape[0] < sequence_length:
+#         padding = np.zeros((sequence_length - arr.shape[0], feature_count))
+#         arr = np.vstack([padding, arr])
+#     elif arr.shape[0] > sequence_length:
+#         arr = arr[-sequence_length:]
+#     return arr.reshape(1, sequence_length, feature_count)
+ 
+# @login_required
+# def add_daily_behavior(request):
+#     student, _ = Student.objects.get_or_create(user=request.user)
+
+#     if request.method == 'POST':
+#         form = DailyBehaviorForm(request.POST)
+#         if form.is_valid():
+#             data = form.cleaned_data
+
+#             # Save or update today's behavior
+#             behavior, _ = DailyBehavior.objects.update_or_create(
+#                 student=student,
+#                 date=data["date"],
+#                 defaults={
+#                     "screen_time_hrs": data["screen_time_hrs"],
+#                     "night_usage_hrs": data["night_usage_hrs"],
+#                     "sleep_hours": data["sleep_hours"],
+#                     "app_social_hrs": data["app_social_hrs"],
+#                     "app_entertainment_hrs": data["app_entertainment_hrs"],
+#                     "app_education_hrs": data["app_education_hrs"],
+#                     "late_sleep_flag": data["late_sleep_flag"],
+#                     "low_sleep_flag": data["low_sleep_flag"],
+#                 }
+#             )
+
+#             # Fetch last 7 days of behaviors
+#             behaviors = DailyBehavior.objects.filter(student=student).order_by("-date")[:7]
+
+#             if behaviors.exists():
+#                 features = np.array([
+#                     [
+#                         b.screen_time_hrs,
+#                         b.night_usage_hrs,
+#                         b.sleep_hours,
+#                         b.app_social_hrs,
+#                         b.app_entertainment_hrs,
+#                         b.app_education_hrs,
+#                         int(b.late_sleep_flag),
+#                         int(b.low_sleep_flag),
+#                     ]
+#                     for b in reversed(behaviors)
+#                 ])
+
+#                 # Scale features
+#                 features_scaled = scaler.transform(features)
+
+#                 # Pad/truncate for LSTM
+#                 X_input = prepare_input(features_scaled, sequence_length=7, feature_count=features_scaled.shape[1])
+
+#                 # Extract features from LSTM
+#                 lstm_features = feature_extractor.predict(X_input, verbose=0)
+
+#                 # XGBoost prediction
+#                 y_pred = xgb_model.predict(lstm_features)[0]
+#                 y_proba = xgb_model.predict_proba(lstm_features)[0]
+#                 risk_label = label_encoder.inverse_transform([y_pred])[0]
+
+#                 # Save prediction
+#                 RiskPrediction.objects.create(
+#                     student=student,
+#                     risk_label=risk_label,
+#                     risk_score=float(np.max(y_proba)),
+#                     metadata={
+#                         "model": "LSTM+XGBoost",
+#                         "days_used": features.shape[0],
+#                         "probabilities": y_proba.tolist()
+#                     }
+#                 )
+
+#             return redirect('student_dashboard')
+
+#     else:
+#         form = DailyBehaviorForm()
+
+#     return render(request, 'students/add_behavior.html', {'form': form})
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODEL_DIR = os.path.join(BASE_DIR, "models")  # your models folder
+
+# Load models
+scaler = joblib.load(os.path.join(MODEL_DIR, "scaler.joblib"))
+lstm_model = load_model(os.path.join(MODEL_DIR, "student_behavior_lstm_supervised.h5"))
+feature_extractor = load_model(os.path.join(MODEL_DIR, "student_behavior_feature_extractor.h5"))
+label_encoder = joblib.load(os.path.join(MODEL_DIR, "label_encoder.joblib"))
+
+SEQUENCE_LENGTH = 7
+FEATURE_COUNT = 8
+
+# =========================
+# Utility: Pad/truncate to 7 days
+# =========================
+def prepare_input(data, sequence_length=SEQUENCE_LENGTH, feature_count=FEATURE_COUNT):
+    arr = np.array(data, dtype=float)
+    if arr.shape[0] < sequence_length:
+        padding = np.zeros((sequence_length - arr.shape[0], feature_count))
+        arr = np.vstack([padding, arr])
+    elif arr.shape[0] > sequence_length:
+        arr = arr[-sequence_length:]
+    return arr.reshape(1, sequence_length, feature_count)
+
+# =========================
+# Main view
+# =========================
+@login_required
+def add_daily_behavior(request):
+    student, _ = Student.objects.get_or_create(user=request.user)
+
+    if request.method == "POST":
+        form = DailyBehaviorForm(request.POST)
+        if form.is_valid():
+            data = form.cleaned_data
+
+            # Save or update behavior for today
+            behavior, created = DailyBehavior.objects.update_or_create(
+                student=student,
+                date=data["date"],
+                defaults={
+                    "screen_time_hrs": data["screen_time_hrs"],
+                    "night_usage_hrs": data["night_usage_hrs"],
+                    "sleep_hours": data["sleep_hours"],
+                    "app_social_hrs": data["app_social_hrs"],
+                    "app_entertainment_hrs": data["app_entertainment_hrs"],
+                    "app_education_hrs": data["app_education_hrs"],
+                    "late_sleep_flag": data["late_sleep_flag"],
+                    "low_sleep_flag": data["low_sleep_flag"],
+                }
+            )
+
+            # Fetch latest 7 days for prediction
+            behaviors = DailyBehavior.objects.filter(student=student).order_by("-date")[:SEQUENCE_LENGTH]
+
+            if behaviors.exists():
+                # Oldest → newest
+                features = np.array([
+                    [
+                        b.screen_time_hrs,
+                        b.night_usage_hrs,
+                        b.sleep_hours,
+                        b.app_social_hrs,
+                        b.app_entertainment_hrs,
+                        b.app_education_hrs,
+                        int(b.late_sleep_flag),
+                        int(b.low_sleep_flag),
+                    ]
+                    for b in reversed(behaviors)
+                ])
+
+                # Scale + pad
+                features_scaled = scaler.transform(features)
+                features_prepared = prepare_input(features_scaled, SEQUENCE_LENGTH, FEATURE_COUNT)
+
+                # Predict LSTM risk
+                prediction = lstm_model.predict(features_prepared, verbose=0)
+                risk_score = float(prediction[0][0])
+                risk_label = "High Risk" if risk_score > 0.6 else "Low Risk"
+
+                # Save prediction
+                RiskPrediction.objects.create(
+                    student=student,
+                    risk_label=risk_label,
+                    risk_score=risk_score,
+                    metadata={"model": "LSTM", "days_used": features.shape[0]}
+                )
+
+            return redirect("student_dashboard")
+    else:
+        form = DailyBehaviorForm()
+
+    return render(request, "students/add_behavior.html", {"form": form})
+
+----------------------
+
+
+dashboard.html
+
+{% extends "base.html" %}
+{% block content %}
+{% load custom_filters %}
+
+<div class="container mt-5">
+    <h2 class="mb-4">📊 Student Dashboard</h2>
+
+    <!-- Quick Action Cards -->
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body text-center">
+                    <h5 class="card-title">➕ Add Daily Behavior</h5>
+                    <a href="{% url 'upload_behavior' %}" class="btn btn-primary">Upload Behavior</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body text-center">
+                    <h5 class="card-title">📈 Predictions</h5>
+                    <a href="prediction_history" class="btn btn-success">Get Prediction</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body text-center">
+                    <h5 class="card-title">📜 History</h5>
+                    <a href="#" class="btn btn-secondary">View History</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Info -->
+    {% if student %}
+    <div class="card mt-4 shadow-sm">
+        <div class="card-body">
+            <h4>{{ student.name }} ({{ student.student_id }})</h4>
+            <p>Email: {{ student.email }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Latest Behavior -->
+    {% if latest_behavior %}
+    <div class="card mt-4 shadow-sm">
+        <div class="card-body">
+            <h5>📌 Latest Behavior ({{ latest_behavior.date }})</h5>
+            <ul>
+                <li>Screen time: {{ latest_behavior.screen_time_hrs }} hrs</li>
+                <li>Night usage: {{ latest_behavior.night_usage_hrs }} hrs</li>
+                <li>Sleep: {{ latest_behavior.sleep_hours }} hrs</li>
+                <li>Social apps: {{ latest_behavior.app_social_hrs }} hrs</li>
+                <li>Entertainment: {{ latest_behavior.app_entertainment_hrs }} hrs</li>
+                <li>Education: {{ latest_behavior.app_education_hrs }} hrs</li>
+            </ul>
+
+            <!-- Progress Bars -->
+            <h6>Progress Overview</h6>
+            <div class="progress mb-2">
+                <div class="progress-bar bg-info" role="progressbar" 
+                     style="width: {{ latest_behavior.screen_time_hrs|floatformat:1|mul:8 }}%;" 
+                     aria-valuenow="{{ latest_behavior.screen_time_hrs }}" aria-valuemin="0" aria-valuemax="12">
+                    Screen Time: {{ latest_behavior.screen_time_hrs }} hrs
+                </div>
+            </div>
+            <div class="progress mb-2">
+                <div class="progress-bar bg-success" role="progressbar" 
+                     style="width: {{ latest_behavior.sleep_hours|floatformat:1|mul:10 }}%;" 
+                     aria-valuenow="{{ latest_behavior.sleep_hours }}" aria-valuemin="0" aria-valuemax="12">
+                    Sleep: {{ latest_behavior.sleep_hours }} hrs
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Latest Prediction -->
+    {% if latest_prediction %}
+    <div class="card mt-4 shadow-sm border-success">
+        <div class="card-body">
+            <h5>🧠 Latest Prediction</h5>
+            <p><strong>Risk Label:</strong> {{ latest_prediction.risk_label }}</p>
+            <p><strong>Risk Score:</strong> {{ latest_prediction.risk_score|floatformat:2 }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Charts -->
+     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+  <!-- Screen Time Chart -->
+  <div class="p-6 bg-white rounded-2xl shadow-md">
+    <h4 class="text-lg font-bold mb-3 flex items-center gap-2">
+      📱 Screen Time Trend
+    </h4>
+    <canvas id="screenTimeChart" height="180"></canvas>
+    <button onclick="screenChart.resetZoom()" class="text-blue-600 mt-2 underline">Reset Zoom</button>
+
+  </div>
+
+  <!-- Risk Score Chart -->
+  <div class="p-6 bg-white rounded-2xl shadow-md">
+     
+    <h4 class="text-lg font-bold mb-3 flex items-center gap-2">
+      ⚠️ Risk Score Trend
+    </h4>
+    <button onclick="riskChart.resetZoom()" class="text-pink-600 mt-2 underline">Reset Zoom</button>
+
+    <canvas id="riskScoreChart" height="180"></canvas>
+  </div>
+</div>
+    <div class="mt-4 text-end">
+        <a href="{% url 'logout' %}" class="btn btn-danger">Logout</a>
+    </div>
+</div>
+
+<!-- Chart.js -->
+ <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+ <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
+  <script>
+  const dates = {{ dates|safe }};
+  const screenTimes = {{ screen_times|safe }};
+  const riskScores = {{ risk_scores|safe }};
+
+  // --- Create gradient fills dynamically ---
+  const ctx1 = document.getElementById('screenTimeChart').getContext('2d');
+  const gradient1 = ctx1.createLinearGradient(0, 0, 0, 400);
+  gradient1.addColorStop(0, 'rgba(54,162,235,0.5)');
+  gradient1.addColorStop(1, 'rgba(54,162,235,0)');
+
+  const ctx2 = document.getElementById('riskScoreChart').getContext('2d');
+  const gradient2 = ctx2.createLinearGradient(0, 0, 0, 400);
+  gradient2.addColorStop(0, 'rgba(255,99,132,0.5)');
+  gradient2.addColorStop(1, 'rgba(255,99,132,0)');
+
+  // --- Screen Time Chart ---
+  const screenChart = new Chart(ctx1, {
+    type: 'line',
+    data: {
+      labels: dates,
+      datasets: [{
+        label: 'Screen Time (hrs)',
+        data: screenTimes,
+        borderColor: '#36A2EB',
+        backgroundColor: gradient1,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: '#36A2EB',
+        pointRadius: 5,
+        pointHoverRadius: 7,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          callbacks: {
+            label: function(ctx) {
+              return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + ' hrs';
+            }
+          }
+        },
+        legend: { labels: { color: '#333' } },
+        zoom: {
+          pan: { enabled: true, mode: 'x' },
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' }
+        }
+      },
+      interaction: { mode: 'nearest', intersect: false },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: 'Hours' }
+        },
+        x: { title: { display: true, text: 'Date' } }
+      }
+    }
+  });
+
+  // --- Risk Score Chart ---
+  const riskChart = new Chart(ctx2, {
+    type: 'line',
+    data: {
+      labels: dates,
+      datasets: [{
+        label: 'Risk Score',
+        data: riskScores,
+        borderColor: '#FF6384',
+        backgroundColor: gradient2,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: riskScores.map(v => v > 0.6 ? '#FF0000' : '#00C853'),
+        pointRadius: 6,
+        pointHoverRadius: 8,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          callbacks: {
+            label: function(ctx) {
+              const risk = ctx.parsed.y > 0.6 ? '⚠️ High Risk' : '✅ Low Risk';
+              return `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} (${risk})`;
+            }
+          }
+        },
+        legend: { labels: { color: '#333' } },
+        zoom: {
+          pan: { enabled: true, mode: 'x' },
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: 1,
+          title: { display: true, text: 'Risk Probability' }
+        },
+        x: { title: { display: true, text: 'Date' } }
+      }
+    }
+  });
+</script>
+{% endblock %}
+-------------------

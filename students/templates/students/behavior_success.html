@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+    <div class="alert alert-success shadow-sm p-4 rounded-3">
+        <h3 class="mb-3">✅ Behavior Submitted Successfully!</h3>
+        <p>Your daily behavior record has been saved.</p>
+
+        <div class="mt-4">
+            <a href="{% url 'upload_behavior' %}" class="btn btn-primary">Add Another Record</a>
+            <a href="{% url 'prediction_history' student_id=101 %}" class="btn btn-secondary">View Prediction History</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

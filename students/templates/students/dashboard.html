@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block content %}
+{% load custom_filters %}
+
+<div class="container mt-5">
+    <h2 class="mb-4">📊 Student Dashboard</h2>
+
+    <!-- Quick Action Cards -->
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body text-center">
+                    <h5 class="card-title">➕ Add Daily Behavior</h5>
+                    <a href="{% url 'upload_behavior' %}" class="btn btn-primary">Upload Behavior</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body text-center">
+                    <h5 class="card-title">📈 Predictions</h5>
+                    <a href="prediction_history" class="btn btn-success">Get Prediction</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body text-center">
+                    <h5 class="card-title">📜 History</h5>
+                    <a href="#" class="btn btn-secondary">View History</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Info -->
+    {% if student %}
+    <div class="card mt-4 shadow-sm">
+        <div class="card-body">
+            <h4>{{ student.name }} ({{ student.student_id }})</h4>
+            <p>Email: {{ student.email }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Latest Behavior -->
+    {% if latest_behavior %}
+    <div class="card mt-4 shadow-sm">
+        <div class="card-body">
+            <h5>📌 Latest Behavior ({{ latest_behavior.date }})</h5>
+            <ul>
+                <li>Screen time: {{ latest_behavior.screen_time_hrs }} hrs</li>
+                <li>Night usage: {{ latest_behavior.night_usage_hrs }} hrs</li>
+                <li>Sleep: {{ latest_behavior.sleep_hours }} hrs</li>
+                <li>Social apps: {{ latest_behavior.app_social_hrs }} hrs</li>
+                <li>Entertainment: {{ latest_behavior.app_entertainment_hrs }} hrs</li>
+                <li>Education: {{ latest_behavior.app_education_hrs }} hrs</li>
+            </ul>
+
+            <!-- Progress Bars -->
+            <h6>Progress Overview</h6>
+            <div class="progress mb-2">
+                <div class="progress-bar bg-info" role="progressbar" 
+                     style="width: {{ latest_behavior.screen_time_hrs|floatformat:1|mul:8 }}%;" 
+                     aria-valuenow="{{ latest_behavior.screen_time_hrs }}" aria-valuemin="0" aria-valuemax="12">
+                    Screen Time: {{ latest_behavior.screen_time_hrs }} hrs
+                </div>
+            </div>
+            <div class="progress mb-2">
+                <div class="progress-bar bg-success" role="progressbar" 
+                     style="width: {{ latest_behavior.sleep_hours|floatformat:1|mul:10 }}%;" 
+                     aria-valuenow="{{ latest_behavior.sleep_hours }}" aria-valuemin="0" aria-valuemax="12">
+                    Sleep: {{ latest_behavior.sleep_hours }} hrs
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Latest Prediction -->
+    {% if latest_prediction %}
+    <div class="card mt-4 shadow-sm border-success">
+        <div class="card-body">
+            <h5>🧠 Latest Prediction</h5>
+            <p><strong>Risk Label:</strong> {{ latest_prediction.risk_label }}</p>
+            <p><strong>Risk Score:</strong> {{ latest_prediction.risk_score|floatformat:2 }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Charts -->
+     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+  <!-- Screen Time Chart -->
+  <div class="p-6 bg-white rounded-2xl shadow-md">
+    <h4 class="text-lg font-bold mb-3 flex items-center gap-2">
+      📱 Screen Time Trend
+    </h4>
+    <canvas id="screenTimeChart" height="180"></canvas>
+    <button onclick="screenChart.resetZoom()" class="text-blue-600 mt-2 underline">Reset Zoom</button>
+
+  </div>
+
+  <!-- Risk Score Chart -->
+  <div class="p-6 bg-white rounded-2xl shadow-md">
+     
+    <h4 class="text-lg font-bold mb-3 flex items-center gap-2">
+      ⚠️ Risk Score Trend
+    </h4>
+    <button onclick="riskChart.resetZoom()" class="text-pink-600 mt-2 underline">Reset Zoom</button>
+
+    <canvas id="riskScoreChart" height="180"></canvas>
+  </div>
+</div>
+    <div class="mt-4 text-end">
+        <a href="{% url 'logout' %}" class="btn btn-danger">Logout</a>
+    </div>
+</div>
+
+<!-- Chart.js -->
+ <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+ <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-3d@0.1.8/dist/chartjs-plugin-3d.min.js"></script>
+ <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+
+  <script>
+  const dates = {{ dates|safe }};
+  const screenTimes = {{ screen_times|safe }};
+  const riskScores = {{ risk_scores|safe }};
+
+  // --- Create gradient fills dynamically ---
+  const ctx1 = document.getElementById('screenTimeChart').getContext('2d');
+  const gradient1 = ctx1.createLinearGradient(0, 0, 0, 400);
+  gradient1.addColorStop(0, 'rgba(54,162,235,0.5)');
+  gradient1.addColorStop(1, 'rgba(54,162,235,0)');
+
+  const ctx2 = document.getElementById('riskScoreChart').getContext('2d');
+  const gradient2 = ctx2.createLinearGradient(0, 0, 0, 400);
+  gradient2.addColorStop(0, 'rgba(255,99,132,0.5)');
+  gradient2.addColorStop(1, 'rgba(255,99,132,0)');
+
+  // --- Screen Time Chart ---
+  const screenChart = new Chart(ctx1, {
+    type: 'line',
+    data: {
+      labels: dates,
+      datasets: [{
+        label: 'Screen Time (hrs)',
+        data: screenTimes,
+        borderColor: '#36A2EB',
+        backgroundColor: gradient1,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: '#36A2EB',
+        pointRadius: 5,
+        pointHoverRadius: 7,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          callbacks: {
+            label: function(ctx) {
+              return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + ' hrs';
+            }
+          }
+        },
+        legend: { labels: { color: '#333' } },
+        zoom: {
+          pan: { enabled: true, mode: 'x' },
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' }
+        }
+      },
+      interaction: { mode: 'nearest', intersect: false },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: 'Hours' }
+        },
+        x: { title: { display: true, text: 'Date' } }
+      }
+    }
+  });
+
+  // --- Risk Score Chart ---
+  const riskChart = new Chart(ctx2, {
+    type: 'line',
+    data: {
+      labels: dates,
+      datasets: [{
+        label: 'Risk Score',
+        data: riskScores,
+        borderColor: '#FF6384',
+        backgroundColor: gradient2,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: riskScores.map(v => v > 0.6 ? '#FF0000' : '#00C853'),
+        pointRadius: 6,
+        pointHoverRadius: 8,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          callbacks: {
+            label: function(ctx) {
+              const risk = ctx.parsed.y > 0.6 ? '⚠️ High Risk' : '✅ Low Risk';
+              return `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} (${risk})`;
+            }
+          }
+        },
+        legend: { labels: { color: '#333' } },
+        zoom: {
+          pan: { enabled: true, mode: 'x' },
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: 1,
+          title: { display: true, text: 'Risk Probability' }
+        },
+        x: { title: { display: true, text: 'Date' } }
+      }
+    }
+  });
+</script>
+{% endblock %}
