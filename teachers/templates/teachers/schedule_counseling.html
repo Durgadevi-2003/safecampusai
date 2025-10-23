@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Schedule Counseling</title>
+</head>
+<body>
+    <h2>Schedule Counseling for {{ student.name }}</h2>
+
+    <form method="POST">
+        {% csrf_token %}
+        <label>Date & Time:</label><br>
+        <input type="datetime-local" name="session_date" required><br><br>
+
+        <label>Mode:</label><br>
+        <select name="mode">
+            <option value="In-person">In-person</option>
+            <option value="Video Call">Video Call</option>
+            <option value="Phone Call">Phone Call</option>
+        </select><br><br>
+
+        <label>Notes (optional):</label><br>
+        <textarea name="notes" rows="3" cols="40"></textarea><br><br>
+
+        <button type="submit">Schedule</button>
+    </form>
+</body>
+</html>

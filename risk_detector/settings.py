@@ -28,6 +28,8 @@ INSTALLED_APPS = [
      'rest_framework',
      "students",
      'teachers',
+     'gamification',
+     "ai_detection",
 ]
 
 MIDDLEWARE = [
@@ -52,6 +54,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'students.context_processors.unread_notifications',
             ],
         },
     },
@@ -115,3 +118,5 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Celery
 CELERY_BROKER_URL = "redis://localhost:6379/0"
 CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
+
+

@@ -1,0 +1,67 @@
+{% extends 'teachers/base.html' %}
+{% block title %}Drug Risk Alerts{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2 class="text-primary mb-4">🚨 Drug Risk Alerts</h2>
+
+  {% if alerts %}
+  <div class="table-responsive shadow-sm rounded">
+    <table class="table table-hover align-middle">
+      <thead class="bg-dark text-white">
+        <tr>
+          <th>Student</th>
+          <th>Text</th>
+          <th>Label</th>
+          <th>Score (%)</th>
+          <th>Detected Words</th>
+          <th>Time</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in alerts %}
+        <tr class="{% if a.label == 'Drug-related' %}bg-danger text-white{% elif a.label == 'Suspicious' %}bg-warning{% endif %}">
+          <td>{{ a.student.name }}</td>
+          <td>{{ a.text }}</td>
+          <td>{{ a.label }}</td>
+          <td>{{ a.score }}</td>
+          <td>{{ a.detected_words|join:", " }}</td>
+          <td>{{ a.timestamp|date:"Y-m-d H:i" }}</td>
+          <td>
+            {% if a.student %}
+            <a href="{% url 'schedule_counseling' a.student.id %}" 
+               class="btn btn-sm btn-outline-dark shadow-sm">
+               🚨 Schedule Counseling
+            </a>
+            {% else %}
+            <span class="text-muted">No student</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted">No alerts detected yet.</p>
+  {% endif %}
+</div>
+
+<!-- Optional custom styles -->
+<style>
+  .table-hover tbody tr:hover {
+    transform: scale(1.02);
+    transition: all 0.15s ease-in-out;
+  }
+
+  .btn-outline-dark:hover {
+    background-color: #343a40;
+    color: #fff;
+  }
+
+  .bg-warning {
+    color: #212529 !important;
+  }
+</style>
+{% endblock %}

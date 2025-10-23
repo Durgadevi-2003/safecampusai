@@ -28,7 +28,7 @@
                         <td>{{ s.name }}</td>
                         <td>{{ s.email }}</td>
                         <td>
-                            <a href="{% url 'prediction_history' s.student_id %}" class="btn btn-sm btn-dark">View History</a>
+                            <a href="{% url 'prediction_history' s.id %}" class="btn btn-sm btn-dark">View History</a>
                         </td>
                     </tr>
                 {% empty %}

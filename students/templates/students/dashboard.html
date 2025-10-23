@@ -1,7 +1,127 @@
 {% extends "base.html" %}
 {% block content %}
 {% load custom_filters %}
+<html>
+  <head>
+    <!-- 💬 SmartCare Chatbot -->
+<style>
+ /* Chatbot Button */
+.chatbot-toggle {
+  position: fixed;
+  bottom: 25px;
+  right: 25px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 55px;
+  height: 55px;
+  font-size: 22px;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
 
+/* Chatbot Container */
+.chatbot-container {
+  display: none;
+  flex-direction: column;
+  justify-content: space-between;
+  position: fixed;
+  bottom: 90px;
+  right: 25px;
+  width: 320px;
+  height: 420px;
+  background: #ffffff;
+  border-radius: 15px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  font-family: "Segoe UI", sans-serif;
+}
+
+/* Header */
+.chatbot-header {
+  background-color: #007bff;
+  color: white;
+  padding: 12px;
+  font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Close button */
+.close-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+/* Chat body */
+.chatbot-body {
+  flex: 1;
+  padding: 10px;
+  overflow-y: auto;
+  background-color: #f1f1f1;
+}
+
+/* Messages */
+.bot-message,
+.user-message {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-radius: 15px;
+  max-width: 80%;
+  word-wrap: break-word;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* Bot message (left side) */
+.bot-message {
+  background-color: #e2e2e2;
+  color: #000;
+  align-self: flex-start;
+}
+
+/* User message (right side) */
+.user-message {
+  background-color: #007bff;
+  color: #fff;
+  align-self: flex-end;
+  margin-left: auto;
+}
+
+/* Input area */
+.chatbot-input {
+  display: flex;
+  padding: 8px;
+  border-top: 1px solid #ddd;
+  background-color: #fff;
+}
+
+.chatbot-input input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  outline: none;
+}
+
+.chatbot-input button {
+  margin-left: 6px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 50%;
+  background-color: #007bff;
+  color: white;
+  cursor: pointer;
+}
+
+</style>
+  </head>
+  <body>
 <div class="container mt-5">
     <h2 class="mb-4">📊 Student Dashboard</h2>
 
@@ -18,30 +138,27 @@
         <div class="col-md-4">
             <div class="card shadow-sm mb-3">
                 <div class="card-body text-center">
-                    <h5 class="card-title">📈 Predictions</h5>
-                    <a href="prediction_history" class="btn btn-success">Get Prediction</a>
+                     <h5 class="card-title">🌞 Daily Care / Health Tip</h5>
+    <p class="card-text">{{ daily_tip }}</p>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card shadow-sm mb-3">
                 <div class="card-body text-center">
-                    <h5 class="card-title">📜 History</h5>
-                    <a href="#" class="btn btn-secondary">View History</a>
+                    <h5 class="card-title">🧠 Recovery Tracker</h5>
+      <p class="card-text">Track your daily mood, cravings & progress visually.</p>
+      <a href="{% url 'addiction_dashboard' %}" class="btn btn-primary">
+        View Progress
+      </a>
                 </div>
             </div>
         </div>
     </div>
+  
 
-    <!-- Student Info -->
-    {% if student %}
-    <div class="card mt-4 shadow-sm">
-        <div class="card-body">
-            <h4>{{ student.name }} ({{ student.student_id }})</h4>
-            <p>Email: {{ student.email }}</p>
-        </div>
-    </div>
-    {% endif %}
+
+ 
 
     <!-- Latest Behavior -->
     {% if latest_behavior %}
@@ -110,12 +227,54 @@
 
     <canvas id="riskScoreChart" height="180"></canvas>
   </div>
-</div>
-    <div class="mt-4 text-end">
-        <a href="{% url 'logout' %}" class="btn btn-danger">Logout</a>
-    </div>
+  <!-- Chatbot Button -->
+<button onclick="toggleChatbot()" class="chatbot-toggle">💬</button>
+
+<!-- Chatbot Box -->
+<div id="chatbot" class="chatbot-container">
+  <div class="chatbot-header">
+    🤖 SmartCare Bot
+    <button onclick="toggleChatbot()" class="close-btn">✖</button>
+  </div>
+  <div id="chatBody" class="chatbot-body">
+    <div class="bot-message">Hi there! 👋 I'm SmartCare Bot. How can I help you today?</div>
+  </div>
+  <div class="chatbot-input">
+    <input id="userInput" type="text" placeholder="Type your question..." />
+    <button onclick="sendMessage()">Send</button>
+    <button onclick="startVoice()">🎙️</button>
+  </div>
 </div>
 
+<div class="card mt-4 shadow-sm">
+  <div class="card-header bg-primary text-white">
+    🎯 Gamification & Rewards
+  </div>
+  <div class="card-body">
+    <h5>🔥 Login Streak: {{ streak.current_streak }} days</h5>
+    <p>🏆 Best Streak: {{ streak.best_streak }} days</p>
+
+    <hr>
+
+    <h5>🌟 Your Badges:</h5>
+    {% for ub in user.badges.all %}
+      <span style="font-size:24px;">{{ ub.badge.icon }}</span>
+      <small>{{ ub.badge.name }}</small><br>
+    {% empty %}
+      <p class="text-muted">No badges earned yet. Keep going! 💪</p>
+    {% endfor %}
+
+    <hr>
+    <a href="{% url 'leaderboard' %}" class="btn btn-outline-primary btn-sm">View Leaderboard</a>
+  </div>
+</div>
+<div class="card mt-4 p-3">
+  <h5>🔍 Check Content for Drug Risk</h5>
+  <textarea id="textInput" class="form-control" placeholder="Enter a message or post..."></textarea>
+  <button class="btn btn-primary mt-2" onclick="analyzeText()">Analyze Text</button>
+  <p id="textResult" class="mt-2"></p>
+</div>
+ 
 <!-- Chart.js -->
  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-3d@0.1.8/dist/chartjs-plugin-3d.min.js"></script>
@@ -230,4 +389,74 @@
     }
   });
 </script>
+
+ <script>
+function toggleChatbot() {
+  const bot = document.getElementById("chatbot");
+  bot.style.display = bot.style.display === "flex" ? "none" : "flex";
+}
+
+function sendMessage() {
+  const input = document.getElementById("userInput");
+  const chatBody = document.getElementById("chatBody");
+  const message = input.value.trim();
+  if (!message) return;
+
+  // User message bubble
+  const userMsg = document.createElement("div");
+  userMsg.className = "user-message";
+  userMsg.textContent = message;
+  chatBody.appendChild(userMsg);
+
+  input.value = "";
+
+  fetch(`/api/students/chatbot/?q=${encodeURIComponent(message)}`)
+    .then(res => res.json())
+    .then(data => {
+      const botMsg = document.createElement("div");
+      botMsg.className = "bot-message";
+      botMsg.textContent = data.reply;
+      chatBody.appendChild(botMsg);
+      chatBody.scrollTop = chatBody.scrollHeight;
+    })
+    .catch(() => {
+      const botMsg = document.createElement("div");
+      botMsg.className = "bot-message";
+      botMsg.textContent = "Sorry, I'm having trouble right now 😞";
+      chatBody.appendChild(botMsg);
+    });
+
+  chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+function startVoice() {
+  const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+  recognition.lang = 'en-IN';
+  recognition.start();
+
+  recognition.onresult = function(event) {
+    const message = event.results[0][0].transcript;
+    document.getElementById("userInput").value = message;
+    sendMessage();
+  };
+
+  recognition.onerror = function() {
+    alert("Voice recognition failed. Please try again.");
+  };
+}
+</script>
+<script>
+function analyzeText() {
+  const text = document.getElementById('textInput').value;
+  fetch(`/ai/analyze-text/?q=${encodeURIComponent(text)}`)
+    .then(res => res.json())
+    .then(data => {
+      document.getElementById('textResult').innerHTML =
+        `Result: <b>${data.label}</b> (${data.score || data.confidence || 0}%)<br>Detected: ${data.detected_words || data.detected}`;
+    });
+}
+</script>
+
+</body>
+</html>
 {% endblock %}

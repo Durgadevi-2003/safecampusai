@@ -7,7 +7,13 @@
 
         <div class="mt-4">
             <a href="{% url 'upload_behavior' %}" class="btn btn-primary">Add Another Record</a>
-            <a href="{% url 'prediction_history' student_id=101 %}" class="btn btn-secondary">View Prediction History</a>
+             {% if student.student_id %}
+                <a href="{% url 'prediction_history' student.student_id %}" class="btn btn-secondary">
+                    View Prediction History
+                </a>
+            {% else %}
+                <button class="btn btn-secondary" disabled>No Student ID Found</button>
+            {% endif %}
         </div>
     </div>
 </div>

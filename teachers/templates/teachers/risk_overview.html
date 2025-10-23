@@ -1,0 +1,104 @@
+{% extends 'teachers/base.html' %}
+{% block title %}Risk Overview{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <h2 class="mb-4">📈 Risk Overview</h2>
+
+  <div class="row g-4">
+    <div class="col-md-4">
+      <div class="card p-3">
+        <h6>Total Students</h6>
+        <h3>{{ total_students }}</h3>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card p-3">
+        <h6>High Risk %</h6>
+        <h3>{{ high_pct }}%</h3>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card p-3">
+        <h6>Quick Actions</h6>
+        <a href="{% url 'student_list' %}" class="btn btn-sm btn-primary">Student List</a>
+        <a href="{% url 'teacher_dashboard' %}" class="btn btn-sm btn-secondary">Dashboard</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mt-4">
+    <div class="col-lg-7">
+      <div class="card p-3">
+        <h5>Students by Risk Level (Bar)</h5>
+        <div class="table-responsive">
+          <canvas id="riskBarChart" width="400" height="200"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card p-3">
+        <h5>Risk Distribution (Pie)</h5>
+        <canvas id="riskPieChart" width="400" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+  // Data from Django context
+  const labels = {{ labels|safe }};
+  const values = {{ values|safe }};
+
+  // Colors (you can adjust to match theme)
+  const colors = [
+    'rgba(220, 53, 69, 0.9)',    // High Risk - red
+    'rgba(255, 193, 7, 0.9)',    // Medium - yellow
+    'rgba(40, 167, 69, 0.9)',    // Low - green
+    'rgba(108, 117, 125, 0.9)'   // No Data - grey
+  ];
+
+  // Bar chart
+  const ctxBar = document.getElementById('riskBarChart').getContext('2d');
+  new Chart(ctxBar, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Number of students',
+        data: values,
+        backgroundColor: colors,
+        borderColor: colors.map(c => c.replace('0.9','1')),
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+
+  // Pie chart
+  const ctxPie = document.getElementById('riskPieChart').getContext('2d');
+  new Chart(ctxPie, {
+    type: 'pie',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors,
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+</script>
+{% endblock %}

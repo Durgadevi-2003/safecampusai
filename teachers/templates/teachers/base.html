@@ -1,0 +1,172 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{% block title %}Teacher Dashboard{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bootstrap & Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+
+  <style>
+    body {
+      margin: 0;
+      background-color: #f8f9fa;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 250px;
+      background-color: #0d6efd;
+      color: white;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      transition: all 0.3s ease;
+      z-index: 1000;
+    }
+
+    .sidebar h2 {
+      text-align: center;
+      padding: 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .sidebar a {
+      color: white;
+      padding: 12px 20px;
+      text-decoration: none;
+      display: block;
+      transition: background 0.2s;
+    }
+
+    .sidebar a:hover {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .sidebar a.active {
+      background-color: rgba(255, 255, 255, 0.4);
+    }
+
+    /* Main Content */
+    .main-content {
+      margin-left: 250px;
+      padding: 30px;
+      flex: 1;
+      transition: margin-left 0.3s ease;
+    }
+
+    footer {
+      background-color: #0d6efd;
+      color: white;
+      text-align: center;
+      padding: 10px 0;
+      width: 100%;
+      position: relative;
+    }
+
+    /* Responsive Sidebar */
+    .menu-toggle {
+      display: none;
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      background-color: #0d6efd;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      padding: 8px 12px;
+      z-index: 1100;
+    }
+
+    @media (max-width: 992px) {
+      .sidebar {
+        left: -250px;
+      }
+
+      .sidebar.active {
+        left: 0;
+      }
+
+      .main-content {
+        margin-left: 0;
+        padding-top: 60px;
+      }
+
+      .menu-toggle {
+        display: block;
+      }
+
+      footer {
+        position: relative;
+        width: 100%;
+      }
+    }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<!-- Toggle Button for Mobile -->
+<button class="menu-toggle" id="menu-toggle"><i class="fa fa-bars"></i></button>
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+  <h2>👩‍🏫 Teacher</h2>
+  <a href="{% url 'teacher_dashboard' %}" class="{% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}">
+    <i class="fa-solid fa-chart-line"></i> Dashboard
+  </a>
+  <a href="{% url 'add_student' %}" class="{% if request.resolver_match.url_name == 'add_student' %}active{% endif %}">
+    <i class="fa-solid fa-user-plus"></i> Add Student
+  </a>
+  <a href="{% url 'student_list' %}" class="{% if request.resolver_match.url_name == 'student_list' %}active{% endif %}">
+    <i class="fa-solid fa-users"></i> Student List
+  </a>
+  <a href="{% url 'prediction_overview' %}" class="{% if request.resolver_match.url_name == 'prediction_overview' %}active{% endif %}">
+    <i class="fa-solid fa-brain"></i> Predictions
+</a>
+<a href="{% url 'export_students_csv' %}" class="btn btn-outline-primary btn-sm">Download CSV</a>
+<a href="{% url 'export_students_pdf' %}" class="btn btn-outline-secondary btn-sm">Download PDF</a>
+<li class="nav-item">
+  <a class="nav-link" href="{% url 'drug_alerts' %}">🚨 Drug Alerts</a>
+</li>
+
+  <a href="{% url 'logout' %}">
+    <i class="fa-solid fa-right-from-bracket"></i> Logout
+  </a>
+  <div class="mt-auto text-center mb-3">
+    <small>👋 {{ request.user.username }}</small>
+  </div>
+</div>
+
+<!-- Main Content -->
+<div class="main-content" id="main-content">
+  {% block content %}
+  {% endblock %}
+</div>
+
+<footer>
+  &copy; {{ year|default:2025 }} SafeCampus AI - Teacher Portal
+</footer>
+
+<!-- JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  const menuToggle = document.getElementById('menu-toggle');
+  const sidebar = document.getElementById('sidebar');
+
+  menuToggle.addEventListener('click', () => {
+    sidebar.classList.toggle('active');
+  });
+</script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

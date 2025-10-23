@@ -12,6 +12,7 @@
             <h3>Add Student</h3>
         </div>
         <div class="card-body">
+            <!-- ✅ Corrected form -->
             <form method="post">
                 {% csrf_token %}
                 {{ form.as_p }}

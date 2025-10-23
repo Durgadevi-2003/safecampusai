@@ -1,9 +1,60 @@
-{% extends 'base.html' %}
+{% extends 'teachers/base.html' %}
 {% block content %}
-<div class="container mt-4">
-  <h2>👩‍🏫 Teacher Dashboard</h2>
-  <table class="table table-striped mt-3">
-    <thead class="table-dark">
+<html>
+<head>
+<style>
+  .table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 10px;
+}
+
+.dashboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: white;
+}
+
+.dashboard-table th,
+.dashboard-table td {
+  text-align: left;
+  padding: 10px;
+  border-bottom: 1px solid #ddd;
+}
+
+.dashboard-table th {
+  background-color: #212121;
+  color: white;
+}
+
+.dashboard-table tr:hover {
+  background-color: #f2f2f2;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .dashboard-table th,
+  .dashboard-table td {
+    padding: 8px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-table th,
+  .dashboard-table td {
+    padding: 6px;
+    font-size: 12px;
+  }
+}
+
+</style>
+</head>
+<body>
+<div class="table-responsive">
+  <table class="dashboard-table">
+    <thead>
       <tr>
         <th>Student</th>
         <th>Email</th>
@@ -41,4 +92,6 @@
     </tbody>
   </table>
 </div>
+</body>
+</html>
 {% endblock %}

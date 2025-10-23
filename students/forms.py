@@ -1,5 +1,6 @@
 from django import forms
-from .models import Student, DailyBehavior
+from .models import Student, DailyBehavior,AddictionEntry
+
 
 class StudentForm(forms.ModelForm):
     class Meta:
@@ -74,6 +75,17 @@ class DailyBehaviorForm(forms.ModelForm):
         }
 
  
+class AddictionEntryForm(forms.ModelForm):
+    class Meta:
+        model = AddictionEntry
+        fields = ["date", "mood", "craving_level", "notes"]
+        widgets = {
+            "date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "mood": forms.NumberInput(attrs={"min": 1, "max": 10, "class": "form-control"}),
+            "craving_level": forms.NumberInput(attrs={"min": 1, "max": 10, "class": "form-control"}),
+            "notes": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+        }
+
  
  
  
