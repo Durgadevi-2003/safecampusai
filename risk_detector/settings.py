@@ -13,7 +13,8 @@ SECRET_KEY = 'django-insecure-smmn@hj4id9g#6xkptl+_yc9$e3yck$b$6lh26&^d(@=)poivw
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['.onrender.com', 'localhost']
+
 
 
 # Application definition
@@ -40,7 +41,11 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
+
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 ROOT_URLCONF = 'risk_detector.urls'
 
@@ -97,12 +102,14 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
-
-TIME_ZONE = 'UTC'
-
+ 
 USE_I18N = True
+ 
 
+# India Time Zone
+TIME_ZONE = 'Asia/Kolkata'
 USE_TZ = True
+
 
 
 # Static files (CSS, JavaScript, Images)
