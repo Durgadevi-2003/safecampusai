@@ -1,2 +1,3 @@
-web: gunicorn safecampusai.wsgi:application
+web: gunicorn risk_detector.wsgi:application
+
 
