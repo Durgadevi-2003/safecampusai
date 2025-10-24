@@ -1,3 +1,11 @@
+setuptools>=65.5.1
+wheel>=0.40.0
+pip>=24.0
+Django>=5.0
+gunicorn
+whitenoise
+dj-database-url
+psycopg2-binary
 absl-py==2.3.1
 amqp==5.3.1
 annotated-types==0.7.0
