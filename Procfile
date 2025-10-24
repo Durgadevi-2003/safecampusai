@@ -1,1 +1,1 @@
-web: gunicorn risk_detector.wsgi:application
+web: gunicorn RISK_DETECTOR.wsgi:application

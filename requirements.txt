@@ -1,8 +1,6 @@
 setuptools>=65.5.1
 wheel
-
 pip>=24.0
-
 Django>=5.0
 gunicorn
 whitenoise
@@ -12,7 +10,7 @@ absl-py==2.3.1
 amqp==5.3.1
 annotated-types==0.7.0
 arabic-reshaper==3.0.0
-asgiref==3.9.2
+asgiref==3.9.2 
 asn1crypto==1.5.1
 astunparse==1.6.3
 async-timeout==5.0.1
