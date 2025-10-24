@@ -1,4 +1,6 @@
-wheel>=0.40.0
+setuptools>=65.5.1
+wheel
+
 pip>=24.0
 
 Django>=5.0
